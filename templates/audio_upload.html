@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Real-time Audio Recording</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 5rem;
+        }
+
+        #record-button {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        #record-button:hover {
+            background-color: #008cff;
+            outline: 2px solid #007bff;
+            outline-offset: 1px;
+        }
+
+        #record-button:active {
+            background-color: #008cff;
+            outline: 2px solid #007bff;
+            outline-offset: 2px;
+        }
+    </style>
+</head>
+
+<body style="overflow-x: hidden;">
+    <h1 style="font-size: 3rem;">Real-time Audio Recording</h1>
+
+    <button style="padding: 1rem 2rem; font-size: 1rem; font-weight: 600; border-radius: 1rem;"
+        id="record-button" autofocus>Record</button>
+
+    <div style="display: flex ; width: 100vw; justify-content: center; align-items: center; font-size: 2.5rem; font-weight: 600;">
+        <p style="padding-right: 1rem;">FS : </p>
+        <span style="padding: 0.5rem 1rem; background-color: aquamarine; border-radius: 1rem;" id="fs">0</span>
+    </div>
+
+    <div style="display: flex ; width: 100vw; justify-content: center; align-items: center; font-size: 2.5rem; font-weight: 600;">
+        <p style="padding-right: 1rem;">Chord : </p>
+        <span style="padding: 0.5rem 1rem; background-color: aquamarine; border-radius: 1rem;" id="final_chord">0</span>
+    </div>
+
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        document.getElementById("record-button").addEventListener("click", async () => {
+            if (!mediaRecorder) {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'recorded_audio.wav');
+
+                    fetch('/process_realtime_audio', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log(data);
+                            if (data.error) {
+                                console.log("Error: " + data.error);
+                            } else {
+                                // Display the audio data and sample rate
+                                console.log("Mono Audio Signal: " + JSON.stringify(data.x));
+                                // document.getElementById('x').innerText = JSON.stringify(data.x)
+                                console.log("Sampling Frequency: " + data.fs + " Hz");
+                                document.getElementById('fs').innerText = JSON.stringify(data.fs + " Hz")
+                                console.log("Sampling Frequency: " + data.final_chord + " Hz");
+                                document.getElementById('final_chord').innerText = JSON.stringify(data.final_chord + " Hz")
+                            }
+                        });
+
+                    audioChunks = [];
+                };
+
+                mediaRecorder.start();
+                document.getElementById("record-button").textContent = "Stop Recording";
+            } else {
+                mediaRecorder.stop();
+                mediaRecorder = null;
+                document.getElementById("record-button").textContent = "Record";
+            }
+        });
+    </script>
+</body>
+
+</html>
